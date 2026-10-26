@@ -1,0 +1,11 @@
+node_modules
+.expo
+.expo-shared
+.git
+.gitignore
+npm-debug.log*
+.DS_Store
+coverage
+web-build
+android
+ios

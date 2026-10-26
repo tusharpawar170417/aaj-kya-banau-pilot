@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Aaj Kya Banau",
+    "slug": "aaj-kya-banau-pilot",
+    "scheme": "aajkyabanau",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.aajkyabanau.pilot",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-status-bar"
+    ],
+    "extra": {
+      "pilot": true,
+      "eas": {
+        "projectId": "e1321981-c3bd-45a0-8172-afb7de5334aa"
+      }
+    }
+  }
+}
