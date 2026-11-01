@@ -7,8 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.aajkyabanau.pilot",
-      "versionCode": 1
+      "package": "com.aajkyabanau.pilot"
     },
     "plugins": [
       "expo-status-bar"

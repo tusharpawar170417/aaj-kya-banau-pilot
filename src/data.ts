@@ -6,6 +6,7 @@ export type SpiceLevel = 'Low' | 'Medium' | 'High';
 export type UserProfile = {
   name: string;
   city: string;
+  bio?: string;
   allergies: string[];
   favoriteCuisines: string[];
   householdSize: number;
@@ -61,6 +62,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
 export const DEFAULT_PROFILE: UserProfile = {
   name: 'Aaj User',
   city: 'Mumbai',
+  bio: 'Food lover and home-cooking enthusiast.',
   allergies: [],
   favoriteCuisines: ['Maharashtrian', 'Gujarati'],
   householdSize: 2,

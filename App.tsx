@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import { APP_CONFIG } from './src/config';
 import {
   Chef,
   DEFAULT_PROFILE,
@@ -31,6 +32,8 @@ import {
 } from './src/data';
 
 const KEY = 'aaj-kya-banau-pilot-v2';
+const AUTH_KEY = 'aaj-kya-banau-session-v1';
+const API_BASE = APP_CONFIG.apiBaseUrl;
 const T = {
   ink: '#23352F',
   green: '#176A50',
@@ -74,7 +77,71 @@ function Tag({ label, onPress, active = false }: { label: string; onPress?: () =
   );
 }
 
-function AppBody() {
+function AuthGate({ onAuth }: { onAuth: (session: { token: string; user: Record<string, string> }) => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('demo@aajkyabanau.com');
+  const [password, setPassword] = useState('demo123');
+  const [name, setName] = useState('Demo User');
+  const [working, setWorking] = useState(false);
+
+  const submit = async () => {
+    setWorking(true);
+    try {
+      const endpoint = `${API_BASE}/${mode === 'login' ? 'auth/login' : 'auth/signup'}`;
+      const payload = mode === 'login' ? { email, password } : { email, password, name };
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error ?? 'Authentication failed');
+      }
+
+      onAuth({ token: data.token, user: data.user });
+    } catch (error) {
+      Alert.alert('Login failed', error instanceof Error ? error.message : 'Unable to reach the server.');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor={T.cream} />
+        <View style={[s.content, { justifyContent: 'center', minHeight: '100%' }]}>
+          <Text style={s.eyebrow}>SECURE ACCESS</Text>
+          <Text style={s.heading}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
+          <Text style={s.subheading}>Connect the app to the production API foundation.</Text>
+
+          {mode === 'signup' && (
+            <>
+              <Text style={s.label}>Full name</Text>
+              <TextInput style={s.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#8A9A91" />
+            </>
+          )}
+
+          <Text style={s.label}>Email</Text>
+          <TextInput style={s.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="your@email.com" placeholderTextColor="#8A9A91" />
+
+          <Text style={s.label}>Password</Text>
+          <TextInput style={s.input} secureTextEntry value={password} onChangeText={setPassword} placeholder="Password" placeholderTextColor="#8A9A91" />
+
+          <Button label={working ? 'Loading...' : mode === 'login' ? 'Login' : 'Create account'} onPress={submit} disabled={working} />
+
+          <TouchableOpacity style={{ marginTop: 18 }} onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+            <Text style={s.link}>{mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Log in'}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+function AppBody({ session }: { session: { token: string; user: Record<string, string> } | null }) {
   const [state, setState] = useState<State>(SEED);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>('Explore');
@@ -133,6 +200,70 @@ function AppBody() {
   }, []);
 
   useEffect(() => {
+    if (!session?.token) return;
+
+    const loadRemoteData = async () => {
+      try {
+        const [recipesResponse, profileResponse] = await Promise.all([
+          fetch(`${API_BASE}/recipes`, {
+            headers: { Authorization: `Bearer ${session.token}` },
+          }),
+          fetch(`${API_BASE}/me`, {
+            headers: { Authorization: `Bearer ${session.token}` },
+          }),
+        ]);
+
+        if (recipesResponse.ok) {
+          const remoteRecipes = await recipesResponse.json();
+          if (Array.isArray(remoteRecipes)) {
+            setState((current) => ({
+              ...current,
+              recipes: remoteRecipes.map((recipe: any) => ({
+                ...recipe,
+                id: recipe.id,
+                chefId: recipe.chefProfileId ?? MY_CHEF_ID,
+                title: recipe.title ?? 'Untitled recipe',
+                region: recipe.region ?? 'India',
+                state: recipe.state ?? 'India',
+                zone: recipe.zone ?? 'West',
+                category: recipe.category ?? 'Dinner',
+                diet: recipe.diet ?? 'Veg',
+                spiceLevel: recipe.spiceLevel ?? 'Medium',
+                cuisine: recipe.cuisine ?? 'Regional',
+                minutes: Number(recipe.minutes ?? 30),
+                servings: Number(recipe.servings ?? 2),
+                emoji: recipe.emoji ?? '🍲',
+                description: recipe.description ?? '',
+                ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+                steps: Array.isArray(recipe.steps) ? recipe.steps : [],
+                tags: Array.isArray(recipe.tags) ? recipe.tags : [],
+                createdAt: typeof recipe.createdAt === 'string' ? new Date(recipe.createdAt).getTime() : Date.now(),
+              })),
+            }));
+          }
+        }
+
+        if (profileResponse.ok) {
+          const profile = await profileResponse.json();
+          setState((current) => ({
+            ...current,
+            profile: {
+              ...current.profile,
+              name: profile?.name ?? current.profile.name,
+              city: profile?.city ?? current.profile.city,
+              bio: profile?.bio ?? current.profile.bio,
+            },
+          }));
+        }
+      } catch {
+        // keep the local seeded demo data if the backend is unavailable
+      }
+    };
+
+    loadRemoteData();
+  }, [session]);
+
+  useEffect(() => {
     if (ready) {
       AsyncStorage.setItem(KEY, JSON.stringify(state)).catch(() => Alert.alert('Storage', 'Could not save changes.'));
     }
@@ -174,17 +305,65 @@ function AppBody() {
 
   const chefName = (id: string) => state.chefs.find((c) => c.id === id)?.name ?? 'Chef';
 
-  const flipSaved = (id: string) =>
+  const flipSaved = async (id: string) => {
+    if (session?.token) {
+      try {
+        const response = await fetch(`${API_BASE}/saves`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+          body: JSON.stringify({ recipeId: id }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setState((v) => ({
+            ...v,
+            savedRecipeIds: data.saved
+              ? [...new Set([...v.savedRecipeIds, id])]
+              : v.savedRecipeIds.filter((x) => x !== id),
+          }));
+          return;
+        }
+      } catch {
+        // fallback to local demo behavior below
+      }
+    }
+
     setState((v) => ({
       ...v,
       savedRecipeIds: v.savedRecipeIds.includes(id) ? v.savedRecipeIds.filter((x) => x !== id) : [...v.savedRecipeIds, id],
     }));
+  };
 
-  const flipFollow = (id: string) =>
+  const flipFollow = async (id: string) => {
+    if (session?.token) {
+      try {
+        const response = await fetch(`${API_BASE}/follows`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+          body: JSON.stringify({ chefId: id }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setState((v) => ({
+            ...v,
+            followedChefIds: data.following
+              ? [...new Set([...v.followedChefIds, id])]
+              : v.followedChefIds.filter((x) => x !== id),
+          }));
+          return;
+        }
+      } catch {
+        // fallback to local demo behavior below
+      }
+    }
+
     setState((v) => ({
       ...v,
       followedChefIds: v.followedChefIds.includes(id) ? v.followedChefIds.filter((x) => x !== id) : [...v.followedChefIds, id],
     }));
+  };
 
   const addAllergy = () => {
     const value = allergyInput.trim();
@@ -234,8 +413,33 @@ function AppBody() {
     setRatingTarget({ type, id, name });
   }
 
-  function saveRating() {
+  async function saveRating() {
     if (!ratingTarget) return;
+
+    const payload = {
+      type: ratingTarget.type,
+      targetId: ratingTarget.id,
+      stars,
+      review: review.trim().slice(0, 500),
+    };
+
+    if (session?.token) {
+      try {
+        const response = await fetch(`${API_BASE}/ratings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          setRatingTarget(null);
+          Alert.alert('Thank you!', 'Your rating was saved to the backend.');
+          return;
+        }
+      } catch {
+        // fallback to local save below
+      }
+    }
 
     const next: Rating = {
       targetId: ratingTarget.id,
@@ -266,7 +470,7 @@ function AppBody() {
     setEditing(true);
   }
 
-  function publish() {
+  async function publish() {
     const m = Number(minutes);
     const n = Number(servings);
     const validIngredients = ingredients.filter((i) => i.name.trim() && i.amount.trim());
@@ -278,6 +482,65 @@ function AppBody() {
     if (!title.trim() || !region.trim() || !description.trim() || !Number.isInteger(m) || m < 1 || m > 1440 || !Number.isInteger(n) || n < 1 || n > 100 || validIngredients.length === 0 || lines.length === 0) {
       Alert.alert('Complete the recipe', 'Add title, region, description, valid minutes/servings, at least one ingredient and one instruction step.');
       return;
+    }
+
+    const recipePayload = {
+      title: title.trim(),
+      region: region.trim(),
+      state: state.userPreferences.state === 'All India' ? 'Maharashtra' : state.userPreferences.state,
+      zone: (state.userPreferences.zone === 'All' ? 'West' : state.userPreferences.zone) as Exclude<Zone, 'All'>,
+      category: kind,
+      diet: (state.userPreferences.diet === 'Any' ? 'Veg' : state.userPreferences.diet) as Exclude<DietPreference, 'Any'>,
+      spiceLevel: state.userPreferences.spiceLevel,
+      cuisine: state.profile.favoriteCuisines[0] || 'Homestyle',
+      minutes: m,
+      servings: n,
+      description: description.trim(),
+      emoji: '🍲',
+      ingredients: validIngredients,
+      steps: lines,
+      tags: ['user-created', 'local'],
+    };
+
+    if (session?.token) {
+      try {
+        const response = await fetch(`${API_BASE}/recipes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+          body: JSON.stringify(recipePayload),
+        });
+
+        if (response.ok) {
+          const createdRecipe = await response.json();
+          setState((v) => ({ ...v, recipes: [
+            {
+              ...createdRecipe,
+              id: createdRecipe.id,
+              chefId: createdRecipe.chefProfileId ?? MY_CHEF_ID,
+              region: createdRecipe.region ?? region.trim(),
+              state: createdRecipe.state ?? 'Maharashtra',
+              zone: createdRecipe.zone ?? 'West',
+              category: createdRecipe.category ?? kind,
+              diet: createdRecipe.diet ?? 'Veg',
+              spiceLevel: createdRecipe.spiceLevel ?? state.userPreferences.spiceLevel,
+              cuisine: createdRecipe.cuisine ?? 'Homestyle',
+              minutes: Number(createdRecipe.minutes ?? m),
+              servings: Number(createdRecipe.servings ?? n),
+              description: createdRecipe.description ?? description.trim(),
+              ingredients: Array.isArray(createdRecipe.ingredients) ? createdRecipe.ingredients : validIngredients,
+              steps: Array.isArray(createdRecipe.steps) ? createdRecipe.steps : lines,
+              tags: Array.isArray(createdRecipe.tags) ? createdRecipe.tags : ['user-created', 'local'],
+              createdAt: typeof createdRecipe.createdAt === 'string' ? new Date(createdRecipe.createdAt).getTime() : Date.now(),
+            },
+            ...v.recipes,
+          ] }));
+          setEditing(false);
+          Alert.alert('Published!', 'Your recipe now appears in Explore.');
+          return;
+        }
+      } catch {
+        // fallback to local demo behavior below
+      }
     }
 
     const r: Recipe = {
@@ -697,7 +960,50 @@ function AppBody() {
 }
 
 export default function App() {
-  return <AppBody />;
+  const [session, setSession] = useState<{ token: string; user: Record<string, string> } | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(AUTH_KEY)
+      .then((value) => {
+        if (value) {
+          try {
+            const parsed = JSON.parse(value) as { token?: string; user?: Record<string, string> };
+            if (parsed.token && parsed.user) {
+              setSession({ token: parsed.token, user: parsed.user });
+            }
+          } catch {
+            // ignore invalid saved session
+          }
+        }
+      })
+      .finally(() => setReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!session) {
+      AsyncStorage.removeItem(AUTH_KEY).catch(() => undefined);
+      return;
+    }
+
+    AsyncStorage.setItem(AUTH_KEY, JSON.stringify(session)).catch(() => undefined);
+  }, [ready, session]);
+
+  if (!ready) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator color={T.green} />
+        <Text style={s.muted}>Loading session...</Text>
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <AuthGate onAuth={setSession} />;
+  }
+
+  return <AppBody session={session} />;
 }
 
 const s = StyleSheet.create({

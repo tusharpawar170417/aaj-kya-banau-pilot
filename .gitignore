@@ -1,1 +1,10 @@
 node_modules
+.expo/
+dist/
+*.jks
+credentials.json
+credentials/
+.env
+.env.*
+*.aab
+*.apk

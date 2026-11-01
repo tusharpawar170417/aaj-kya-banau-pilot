@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  avatar        String?
+  bio           String?
+  city          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  recipes       Recipe[]
+  savedRecipes  SavedRecipe[]
+  follows       Follow[]
+  ratings       Rating[]
+  reports       Report[]
+}
+
+model ChefProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  specialty   String?
+  region      String?
+  bio         String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  recipes     Recipe[]
+}
+
+model Recipe {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  cuisine     String
+  category    String
+  region      String
+  state       String
+  zone        String
+  diet        String
+  spiceLevel  String
+  minutes     Int
+  servings    Int
+  emoji       String?
+  ingredients Json
+  steps       Json
+  tags        Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  chefProfile ChefProfile @relation(fields: [chefProfileId], references: [id])
+  chefProfileId String
+  author      User         @relation(fields: [authorId], references: [id])
+  authorId    String
+  savedBy     SavedRecipe[]
+  ratings     Rating[]
+  reports     Report[]
+}
+
+model SavedRecipe {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  followerId String
+  chefId     String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [followerId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, chefId])
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String?
+  chefId    String?
+  stars     Int
+  review    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe?  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@unique([userId, chefId])
+}
+
+model Report {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String?
+  reason    String
+  details   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe?  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
