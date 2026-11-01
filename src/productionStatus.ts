@@ -1,8 +1,8 @@
 export const PRODUCTION_STATUS = {
-  projectType: 'Production-ready foundation scaffold',
-  backend: 'Express + TypeScript + Prisma + PostgreSQL planned',
-  auth: 'JWT auth scaffold prepared',
-  storage: 'Cloud-backed storage ready to replace AsyncStorage',
-  compliance: 'Privacy and moderation paths not yet implemented',
-  status: 'MVP production foundation only',
+  projectType: 'Firebase-ready production foundation',
+  backend: 'Express + TypeScript + Firebase Firestore ready',
+  auth: 'JWT auth scaffold prepared; Firebase Auth can replace it',
+  storage: 'Firestore-backed storage ready for app data',
+  compliance: 'Privacy and moderation paths still need review',
+  status: 'Firebase migration ready for deployment',
 };

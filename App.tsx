@@ -17,6 +17,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import { APP_CONFIG } from './src/config';
 import {
+  auth,
+  createUserWithFirebaseEmail,
+  firebaseEnabled,
+  signInWithFirebaseEmail,
+} from './src/firebase';
+import {
   Chef,
   DEFAULT_PROFILE,
   DEFAULT_USER_PREFERENCES,
@@ -87,6 +93,26 @@ function AuthGate({ onAuth }: { onAuth: (session: { token: string; user: Record<
   const submit = async () => {
     setWorking(true);
     try {
+      if (firebaseEnabled && auth) {
+        const credential = mode === 'login'
+          ? await signInWithFirebaseEmail(email, password)
+          : await createUserWithFirebaseEmail(email, password, name);
+
+        const user = credential.user;
+        onAuth({
+          token: await user.getIdToken(),
+          user: {
+            id: user.uid,
+            email: user.email ?? '',
+            name: user.displayName ?? name,
+            city: 'Mumbai',
+            bio: 'Firebase-authenticated user',
+            avatar: '👩🏽‍🍳',
+          },
+        });
+        return;
+      }
+
       const endpoint = `${API_BASE}/${mode === 'login' ? 'auth/login' : 'auth/signup'}`;
       const payload = mode === 'login' ? { email, password } : { email, password, name };
       const response = await fetch(endpoint, {
